@@ -98,7 +98,13 @@ tr.me td{background:rgba(255,210,63,.25)}
     <div class="stat"><div>擊落單字</div><b id="oWords">0</b></div>
     <div class="stat"><div>準確率</div><b id="oAcc">0</b></div>
   </div>
-  <div id="oGlobal" class="note" style="font-size:15px;opacity:1;color:#ffd23f;font-weight:800"></div>
+  <div id="oGlobal" style="font-size:22px;color:#ffd23f;font-weight:900;margin:6px 0;text-shadow:0 3px 0 #24065e"></div>
+  <div id="oMsgBox" style="display:none;margin-top:6px">
+    <input type="text" id="oMsg" maxlength="40" placeholder="留一句話給大家（可不填）">
+    <div id="oQuick" style="display:flex;gap:6px;flex-wrap:wrap;justify-content:center;margin-top:8px"></div>
+    <button id="oSend" style="display:block;width:100%;margin-top:10px;font-size:18px;padding:12px;background:#ffd23f;color:#3a0ca3;border:3px solid #fff;box-shadow:0 5px 0 #b5179e">送出並上榜 🚀</button>
+  </div>
+  <div id="oSent" class="note" style="font-size:14px;opacity:1"></div>
   <div id="oMissed" class="note"></div>
   <button class="big" id="againBtn">再玩一次 ↻</button>
   <div class="row"><button id="oLbBtn">🏆 排行榜</button><button id="oMenuBtn">回主選單</button></div>
@@ -129,15 +135,16 @@ const SUPA_KEY='sb_publishable_hkEiit3q7NYLgIVmANlZMg_pC3D2bcT';
 const ONLINE=SUPA_URL.startsWith('https://');
 function supaHeaders(extra){const h={'apikey':SUPA_KEY,'Content-Type':'application/json'};if(!SUPA_KEY.startsWith('sb_'))h['Authorization']='Bearer '+SUPA_KEY;return Object.assign(h,extra||{})}
 async function supaFetch(path,opt){const ctl=new AbortController();const tm=setTimeout(()=>ctl.abort(),10000);try{const r=await fetch(SUPA_URL+'/rest/v1/'+path,Object.assign({signal:ctl.signal},opt));if(!r.ok)throw new Error('HTTP '+r.status);return r}finally{clearTimeout(tm)}}
-async function onlineSubmit(e){
-  await supaFetch('scores',{method:'POST',headers:supaHeaders({'Prefer':'return=minimal'}),body:JSON.stringify({name:e.name,score:e.score,words:e.words,time_sec:e.time,acc:e.acc,hint:settings.hint})});
-  const r=await supaFetch('scores?select=id&score=gt.'+e.score,{headers:supaHeaders({'Prefer':'count=exact','Range':'0-0'})});
+async function onlineRank(score){
+  const r=await supaFetch('scores?select=id&score=gt.'+score,{headers:supaHeaders({'Prefer':'count=exact','Range':'0-0'})});
   const cr=r.headers.get('content-range')||'';const n=parseInt(cr.split('/')[1]);return isNaN(n)?null:n+1;
 }
+function scoreBody(e,msg){return JSON.stringify({name:e.name,score:e.score,words:e.words,time_sec:e.time,acc:e.acc,hint:settings.hint,message:msg||null})}
+async function onlineSubmit(e,msg){await supaFetch('scores',{method:'POST',headers:supaHeaders({'Prefer':'return=minimal'}),body:scoreBody(e,msg)})}
 async function onlineTop(scope,mode){
-  const col=mode==='time'?'time_sec':'score';let q='scores?select=name,score,words,time_sec,created_at&order='+col+'.desc,created_at.asc&limit=20';
+  const col=mode==='time'?'time_sec':'score';let q='scores?select=name,score,words,time_sec,created_at,message&order='+col+'.desc,created_at.asc&limit=20';
   if(scope==='week'){q+='&created_at=gte.'+new Date(Date.now()-7*864e5).toISOString()}
-  const r=await supaFetch(q,{headers:supaHeaders()});return (await r.json()).map(x=>({name:x.name,score:x.score,words:x.words,time:x.time_sec,id:'o'+x.created_at+x.name}));
+  const r=await supaFetch(q,{headers:supaHeaders()});return (await r.json()).map(x=>({name:x.name,score:x.score,words:x.words,time:x.time_sec,msg:x.message,id:'o'+x.created_at+x.name}));
 }
 const DEFAULT_WORDS=`apple,蘋果
 banana,香蕉
@@ -508,11 +515,12 @@ function wcount(){$('#wcount').textContent='目前字庫：'+WORDS.length+' 個�
 function start(){if(!$('#pname').value.trim())$('#pname').value='JENNY';
 {newMode=false;const nm=$('#pname').value.trim().slice(0,12);$('#pname').value=nm;store.set('wb_names',[nm].concat(getNames().filter(x=>x!==nm&&!PRESET_NAMES.includes(x))).slice(0,4));renderChips()}
 audio();applyVol();sfxStart();MUS.step=0;musicStop();musicStart();settings.name=$('#pname').value.trim().slice(0,12);store.set('wb_settings',settings);hideAll();newGame();renderTyped();showCombo()}
-$('#startBtn').onclick=start;$('#againBtn').onclick=start;
+$('#startBtn').onclick=start;$('#againBtn').onclick=async()=>{await sendPending();start()};
+$('#oSend').onclick=()=>sendPending();
 $('#pauseBtn').onclick=()=>{if(G&&G.running){G.paused=true;musicStop();show('pause')}};
 $('#resumeBtn').onclick=()=>{G.paused=false;musicStart();hideAll();focusKb()};
 $('#quitBtn').onclick=()=>{G.paused=false;gameOver()};
-$('#oMenuBtn').onclick=()=>{$('#hud').style.display='none';$('#typed').style.display='none';G=null;show('menu')};
+$('#oMenuBtn').onclick=()=>{sendPending();$('#hud').style.display='none';$('#typed').style.display='none';G=null;show('menu')};
 
 let lastEntry=null,lbMode='score';
 function gameOver(){
@@ -526,13 +534,25 @@ function gameOver(){
   lb.push(lastEntry);lb.sort((a,b)=>b.score-a.score);store.set('wb_lb',lb.slice(0,50));
   const rank=lb.findIndex(e=>e.id===lastEntry.id)+1;
   $('#overTitle').textContent=rank===1?'🏆 本機新紀錄！':(rank<=10?'本機排行第 '+rank+' 名！':'遊戲結束');
-  $('#oGlobal').textContent='';lastOnline=null;
-  if(ONLINE&&G.score>0){$('#oGlobal').textContent='🌍 上傳全球排行榜中…';const e=lastEntry;
-    onlineSubmit(e).then(r=>{lastOnline={name:e.name,score:e.score,time:e.time};$('#oGlobal').textContent=r?'🌍 全球排行第 '+r+' 名！':'🌍 已上傳全球排行榜'}).catch(()=>{$('#oGlobal').textContent='⚠️ 網路不穩，這局沒有上傳到全球排行榜'})}
+  $('#oGlobal').textContent='';$('#oSent').textContent='';$('#oMsgBox').style.display='none';$('#oMsg').value='';lastOnline=null;pending=null;
+  if(ONLINE&&G.score>0){pending={e:lastEntry,sent:false};$('#oGlobal').textContent='🌍 計算全球排名中…';$('#oMsgBox').style.display='block';renderQuick();
+    const myPend=pending;onlineRank(lastEntry.score).then(r=>{if(pending!==myPend)return;$('#oGlobal').textContent=r?(r===1?'🥇 全球第 1 名！':'🌍 全球排行第 '+r+' 名！'):'🌍 全球排行榜'}).catch(()=>{$('#oGlobal').textContent='🌍 全球排行榜'})}
   show('over');
 }
-let lbScope=ONLINE?'all':'local',lastOnline=null,lbReq=0;
-function lbRows(lb,isMe){const md=['🥇','🥈','🥉'];return lb.length?lb.map((e,i)=>`<tr class="${isMe(e)?'me':''}"><td class="medal">${md[i]||i+1}</td><td>${esc(e.name)}</td><td><b>${e.score}</b></td><td>${e.words}</td><td>${fmt(e.time)}</td></tr>`).join(''):'<tr><td colspan="5">還沒有紀錄，快來搶第一！</td></tr>'}
+let lbScope=ONLINE?'all':'local',lastOnline=null,lbReq=0,pending=null;
+const QUICK_MSGS=['太好玩了！','下次一定贏 💪','我是打字高手 😎','誰來挑戰我？','加油加油！'];
+function renderQuick(){$('#oQuick').innerHTML=QUICK_MSGS.map(m=>`<button type="button" style="font-size:13px;padding:6px 10px">${m}</button>`).join('');$('#oQuick').querySelectorAll('button').forEach(b=>b.onclick=()=>{$('#oMsg').value=b.textContent})}
+function cleanMsg(m){return (m||'').replace(/[\u0000-\u001f<>]/g,'').trim().slice(0,40)}
+async function sendPending(keepalive){
+  if(!pending||pending.sent)return;const p=pending;p.sent=true;const msg=cleanMsg($('#oMsg').value);
+  if(keepalive){try{fetch(SUPA_URL+'/rest/v1/scores',{method:'POST',keepalive:true,headers:supaHeaders({'Prefer':'return=minimal'}),body:scoreBody(p.e,msg)})}catch(e){}return}
+  $('#oMsgBox').style.display='none';$('#oSent').textContent='上傳中…';
+  try{await onlineSubmit(p.e,msg);lastOnline={name:p.e.name,score:p.e.score,time:p.e.time};$('#oSent').textContent=msg?'✅ 已上榜，留言：「'+msg+'」':'✅ 已上榜'}
+  catch(err){p.sent=false;$('#oMsgBox').style.display='block';$('#oSent').textContent='⚠️ 網路不穩，請再按一次送出'}
+}
+addEventListener('pagehide',()=>sendPending(true));
+
+function lbRows(lb,isMe){const md=['🥇','🥈','🥉'];return lb.length?lb.map((e,i)=>`<tr class="${isMe(e)?'me':''}"><td class="medal">${md[i]||i+1}</td><td style="text-align:left">${esc(e.name)}${e.msg?`<div style="font-size:12px;font-weight:500;opacity:.85;margin-top:2px">💬 ${esc(e.msg)}</div>`:''}</td><td><b>${e.score}</b></td><td>${e.words}</td><td>${fmt(e.time)}</td></tr>`).join(''):'<tr><td colspan="5">還沒有紀錄，快來搶第一！</td></tr>'}
 function renderLb(){
   $('#lbSeg').querySelectorAll('button').forEach(b=>b.classList.toggle('on',b.dataset.v===lbMode));
   $('#lbScope').querySelectorAll('button').forEach(b=>{b.classList.toggle('on',b.dataset.v===lbScope);if(!ONLINE&&b.dataset.v!=='local')b.style.display='none'});
@@ -546,7 +566,7 @@ function renderLb(){
 function esc(s){return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
 let lbBack='menu';
 $('#lbBtn').onclick=()=>{lbBack='menu';renderLb();show('lb')};
-$('#oLbBtn').onclick=()=>{lbBack='over';renderLb();show('lb')};
+$('#oLbBtn').onclick=async()=>{lbBack='over';await sendPending();renderLb();show('lb')};
 $('#lbClose').onclick=()=>show(lbBack);
 $('#lbSeg').querySelectorAll('button').forEach(b=>b.onclick=()=>{lbMode=b.dataset.v;renderLb()});
 $('#lbScope').querySelectorAll('button').forEach(b=>b.onclick=()=>{lbScope=b.dataset.v;renderLb()});
@@ -557,7 +577,8 @@ $('#wbClose').onclick=()=>show('menu');
 
 /* ---------- input ---------- */
 document.addEventListener('keydown',e=>{
-  if(document.activeElement&&['pname','wbText'].includes(document.activeElement.id))return;
+  if(document.activeElement&&document.activeElement.id==='oMsg'&&e.key==='Enter'){sendPending();return}
+  if(document.activeElement&&['pname','wbText','oMsg'].includes(document.activeElement.id))return;
   if(e.key==='Escape'&&G&&G.running){if(G.paused){G.paused=false;musicStart();hideAll();focusKb()}else{G.paused=true;musicStop();show('pause')}return}
   if(e.key==='Enter'&&(!G||!G.running)&&$('#menu').classList.contains('show')){start();return}
   if(e.key&&e.key.length===1&&/[a-z]/i.test(e.key)&&G&&G.running){e.preventDefault();onKey(e.key)}

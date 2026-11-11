@@ -18,3 +18,4 @@ create index if not exists scores_score_idx on public.scores (score desc);
 create index if not exists scores_time_idx on public.scores (time_sec desc);
 grant usage on schema public to anon;
 grant select, insert on public.scores to anon;
+alter table public.scores add column if not exists message text check (message is null or char_length(message) <= 40);
