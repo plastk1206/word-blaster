@@ -79,7 +79,8 @@ tr.me td{background:rgba(255,210,63,.25)}
   </div>
   <div class="toggle" style="flex-wrap:wrap"><button id="musBtn"></button><button id="sfxBtn"></button><button id="sayBtn"></button></div>
   <button class="big" id="startBtn">開始遊戲 ▶</button>
-  <div class="row"><button id="lbBtn">🏆 排行榜</button><button id="wbBtn">📚 字庫</button></div>
+  <div class="note" style="opacity:1;color:#9ff0ff;font-weight:800;font-size:13px">⚡ 快速打完單字可以得到 🛡 護盾，抵銷一次扣血！</div>
+  <div class="row"><button id="lbBtn">🏆 排行榜</button><button id="helpBtn">❓ 玩法</button><button id="wbBtn">📚 字庫</button></div>
   <div class="note" id="wcount"></div>
 </div></div>
 
@@ -119,6 +120,18 @@ tr.me td{background:rgba(255,210,63,.25)}
   <div class="row"><button id="lbClose">返回</button></div>
 </div></div>
 
+<div class="overlay" id="help"><div class="panel" style="text-align:left">
+  <h2 style="text-align:center">❓ 怎麼玩</h2>
+  <div style="font-size:15px;line-height:1.75">
+  <p>🎯 <b>看中文、打英文</b>：打對字母砲台就會發射子彈，整個單字打完就擊落。</p>
+  <p>❤️ <b>扣血</b>：單字掉到底部會扣一顆心，3 顆心用完遊戲結束。</p>
+  <p>⚡ <b>快速打完</b>：很快打完一個單字會出現「⚡快！」，並累積 1 格護盾能量（上方 ●○○）。</p>
+  <p>🛡 <b>護盾</b>：能量集滿 3 格就得到 1 個護盾。護盾可以<b>抵銷一次扣血</b>，最多存 3 個。</p>
+  <p>🔥 <b>連擊</b>：連續打對會有 COMBO 加分，打錯字 COMBO 就歸零。</p>
+  <p>🚀 <b>升級</b>：每擊落 10 個字升一級，單字會掉得越來越快。</p>
+  </div>
+  <div class="row"><button id="helpClose">知道了</button></div>
+</div></div>
 <div class="overlay" id="wb"><div class="panel">
   <h2>📚 字庫</h2>
   <div class="note" style="margin:0 0 8px">一行一個單字：英文 + 中文（用逗號、Tab 或空格分開）<br>例如：apple,蘋果</div>
@@ -784,6 +797,7 @@ $('#wbBtn').onclick=()=>{$('#wbText').value=wordText;$('#wbMsg').textContent='�
 $('#wbSave').onclick=()=>{const t=$('#wbText').value;const w=parseWords(t);if(w.length<5){$('#wbMsg').textContent='至少需要 5 個有效單字（格式：apple,蘋果）';return}wordText=t;WORDS=w;store.set('wb_words',t);$('#wbMsg').textContent='已儲存 '+w.length+' 個單字';wcount()};
 $('#wbReset').onclick=()=>{wordText=DEFAULT_WORDS;WORDS=parseWords(DEFAULT_WORDS);$('#wbText').value=wordText;try{localStorage.removeItem('wb_words')}catch(e){}$('#wbMsg').textContent='已還原預設字庫（'+WORDS.length+' 個）';wcount()};
 $('#wbClose').onclick=()=>show('menu');
+$('#helpBtn').onclick=()=>show('help');$('#helpClose').onclick=()=>show('menu');
 
 /* ---------- input ---------- */
 document.addEventListener('keydown',e=>{
