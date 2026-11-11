@@ -68,6 +68,7 @@ tr.me td{background:rgba(255,210,63,.25)}
   <h1>單字砲台<small>WORD BLASTER</small></h1>
   <div class="lbl">玩家名稱</div>
   <input type="text" id="pname" maxlength="12" placeholder="輸入你的名字">
+  <div id="nameChips" style="display:flex;gap:6px;justify-content:center;flex-wrap:wrap;margin-top:8px"></div>
   <div class="lbl">英文提示</div>
   <div class="seg" id="hintSeg">
     <button data-v="1">提示 1 字</button><button data-v="2">提示 2 字</button><button data-v="0">不顯示</button>
@@ -491,10 +492,15 @@ segInit('#hintSeg','hint',Number);segInit('#diffSeg','diff',Number);
 function sayLabel(){$('#sayBtn').textContent='🗣 唸英文：'+(settings.say?'開':'關');['','2'].forEach(k=>{$('#musBtn'+k).textContent='🎵 音樂：'+(settings.music?'開':'關');$('#sfxBtn'+k).textContent='🔊 音效：'+(settings.sfx?'開':'關')})}
 function tog(k){settings[k]=!settings[k];store.set('wb_settings',settings);applyVol();sayLabel()}
 $('#sayBtn').onclick=()=>tog('say');['','2'].forEach(k=>{$('#musBtn'+k).onclick=()=>tog('music');$('#sfxBtn'+k).onclick=()=>{tog('sfx');audio();if(settings.sfx)beep(880,.08)}});sayLabel();
-$('#pname').value=settings.name||'';
+$('#pname').value=settings.name||'JENNY';
+function getNames(){let n=store.get('wb_names',[]);if(!Array.isArray(n))n=[];n=n.filter(x=>x&&x!=='JENNY');return ['JENNY'].concat(n).slice(0,5)}
+function renderChips(){const cur=$('#pname').value.trim();$('#nameChips').innerHTML=getNames().map(n=>`<button type="button" data-n="${esc(n)}" class="${n===cur?'on':''}" style="font-size:14px;padding:6px 14px">${n==='JENNY'?'👧 ':''}${esc(n)}</button>`).join('');
+  $('#nameChips').querySelectorAll('button').forEach(b=>b.onclick=()=>{$('#pname').value=b.dataset.n;renderChips()})}
+$('#pname').addEventListener('input',renderChips);
 function wcount(){$('#wcount').textContent='目前字庫：'+WORDS.length+' 個單字'}wcount();
 
-function start(){if(!$('#pname').value.trim())$('#pname').value='玩家'+Math.floor(Math.random()*900+100);
+function start(){if(!$('#pname').value.trim())$('#pname').value='JENNY';
+{const nm=$('#pname').value.trim().slice(0,12);store.set('wb_names',[nm].concat(getNames().filter(x=>x!==nm&&x!=='JENNY')).slice(0,4));renderChips()}
 audio();applyVol();sfxStart();MUS.step=0;musicStop();musicStart();settings.name=$('#pname').value.trim().slice(0,12);store.set('wb_settings',settings);hideAll();newGame();renderTyped();showCombo()}
 $('#startBtn').onclick=start;$('#againBtn').onclick=start;
 $('#pauseBtn').onclick=()=>{if(G&&G.running){G.paused=true;musicStop();show('pause')}};
@@ -555,7 +561,7 @@ cv.addEventListener('pointerdown',()=>{if(G&&G.running)focusKb()});
 $('#typed').addEventListener('pointerdown',()=>focusKb());
 document.addEventListener('visibilitychange',()=>{if(document.hidden&&G&&G.running&&!G.paused){G.paused=true;musicStop();show('pause')}});
 
-resize();requestAnimationFrame(loop);
+renderChips();resize();requestAnimationFrame(loop);
 </script>
 </body>
 </html>
