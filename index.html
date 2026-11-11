@@ -66,9 +66,9 @@ tr.me td{background:rgba(255,210,63,.25)}
 
 <div class="overlay show" id="menu"><div class="panel">
   <h1>單字砲台<small>WORD BLASTER</small></h1>
-  <div class="lbl">玩家名稱</div>
-  <input type="text" id="pname" maxlength="12" placeholder="輸入你的名字">
-  <div id="nameChips" style="display:flex;gap:6px;justify-content:center;flex-wrap:wrap;margin-top:8px"></div>
+  <div class="lbl">選擇角色</div>
+  <div id="nameChips" style="display:flex;gap:6px;justify-content:center;flex-wrap:wrap;margin-bottom:8px"></div>
+  <input type="text" id="pname" maxlength="12" placeholder="輸入新角色的名字" style="display:none">
   <div class="lbl">英文提示</div>
   <div class="seg" id="hintSeg">
     <button data-v="1">提示 1 字</button><button data-v="2">提示 2 字</button><button data-v="0">不顯示</button>
@@ -495,13 +495,18 @@ $('#sayBtn').onclick=()=>tog('say');['','2'].forEach(k=>{$('#musBtn'+k).onclick=
 $('#pname').value=settings.name||'JENNY';
 const PRESET_NAMES=['JENNY','CARRIE'];
 function getNames(){let n=store.get('wb_names',[]);if(!Array.isArray(n))n=[];n=n.filter(x=>x&&!PRESET_NAMES.includes(x));return PRESET_NAMES.concat(n).slice(0,6)}
-function renderChips(){const cur=$('#pname').value.trim();$('#nameChips').innerHTML=getNames().map(n=>`<button type="button" data-n="${esc(n)}" class="${n===cur?'on':''}" style="font-size:14px;padding:6px 14px">${PRESET_NAMES.includes(n)?'👧 ':''}${esc(n)}</button>`).join('');
-  $('#nameChips').querySelectorAll('button').forEach(b=>b.onclick=()=>{$('#pname').value=b.dataset.n;renderChips()})}
-$('#pname').addEventListener('input',renderChips);
+let newMode=false;
+function renderChips(){const cur=$('#pname').value.trim();
+  $('#nameChips').innerHTML=getNames().map(n=>`<button type="button" data-n="${esc(n)}" class="${!newMode&&n===cur?'on':''}" style="font-size:15px;padding:8px 16px">${PRESET_NAMES.includes(n)?'👧 ':'🙂 '}${esc(n)}</button>`).join('')+`<button type="button" id="newChar" class="${newMode?'on':''}" style="font-size:15px;padding:8px 16px">＋ 新角色</button>`;
+  $('#pname').style.display=newMode?'block':'none';
+  $('#nameChips').querySelectorAll('button[data-n]').forEach(b=>b.onclick=()=>{newMode=false;$('#pname').value=b.dataset.n;renderChips()});
+  $('#newChar').onclick=()=>{newMode=true;$('#pname').value='';renderChips();try{$('#pname').focus()}catch(e){}}}
+if(!getNames().includes($('#pname').value.trim()))$('#pname').value='JENNY';
+
 function wcount(){$('#wcount').textContent='目前字庫：'+WORDS.length+' 個單字'}wcount();
 
 function start(){if(!$('#pname').value.trim())$('#pname').value='JENNY';
-{const nm=$('#pname').value.trim().slice(0,12);store.set('wb_names',[nm].concat(getNames().filter(x=>x!==nm&&!PRESET_NAMES.includes(x))).slice(0,4));renderChips()}
+{newMode=false;const nm=$('#pname').value.trim().slice(0,12);$('#pname').value=nm;store.set('wb_names',[nm].concat(getNames().filter(x=>x!==nm&&!PRESET_NAMES.includes(x))).slice(0,4));renderChips()}
 audio();applyVol();sfxStart();MUS.step=0;musicStop();musicStart();settings.name=$('#pname').value.trim().slice(0,12);store.set('wb_settings',settings);hideAll();newGame();renderTyped();showCombo()}
 $('#startBtn').onclick=start;$('#againBtn').onclick=start;
 $('#pauseBtn').onclick=()=>{if(G&&G.running){G.paused=true;musicStop();show('pause')}};
